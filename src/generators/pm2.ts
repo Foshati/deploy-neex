@@ -3,6 +3,21 @@ import { DeployConfig, NeexProject } from '../types.js';
 import { Logger } from '../utils/logger.js';
 import { SystemUtils } from '../utils/system.js';
 
+interface PM2AppConfig {
+  name: string;
+  script: string;
+  args: string;
+  cwd: string;
+  instances: number;
+  autorestart: boolean;
+  watch: boolean;
+  max_memory_restart: string;
+  env: {
+    NODE_ENV: string;
+    PORT: number;
+  };
+}
+
 export class PM2Generator {
     private logger: Logger;
     private system: SystemUtils;
@@ -24,7 +39,7 @@ export class PM2Generator {
     }
 
     private generateEcosystemConfig(config: DeployConfig, project: NeexProject): string {
-        const apps = [];
+        const apps: PM2AppConfig[] = [];
 
         if (project.hasClient) {
             apps.push({
@@ -78,13 +93,62 @@ export class PM2Generator {
     async start(config: DeployConfig, project: NeexProject): Promise<void> {
         this.logger.step('Starting PM2 applications...');
 
-        await this.system.executeCommand('pm2', ['start', 'ecosystem.config.js'], project.rootPath);
-        await this.system.executeCommand('pm2', ['save']);
+        try {
+            // Stop existing processes if any
+            await this.system.executeCommand('pm2', ['delete', 'all'], project.rootPath).catch(() => {
+                // Ignore errors if no processes exist
+            });
 
-        if (config.autoStart) {
-            await this.system.executeCommand('pm2', ['startup']);
+            // Start new processes
+            await this.system.executeCommand('pm2', ['start', 'ecosystem.config.js'], project.rootPath);
+            await this.system.executeCommand('pm2', ['save']);
+
+            if (config.autoStart) {
+                try {
+                    await this.system.executeCommand('pm2', ['startup']);
+                    this.logger.success('PM2 auto-startup configured');
+                } catch (error) {
+                    this.logger.warning('Could not configure PM2 auto-startup. You may need to run this manually with sudo.');
+                }
+            }
+
+            this.logger.success('PM2 applications started');
+        } catch (error: any) {
+            this.logger.error(`Failed to start PM2 applications: ${error.message}`);
+            throw error;
         }
+    }
 
-        this.logger.success('PM2 applications started');
+    async stop(): Promise<void> {
+        this.logger.step('Stopping PM2 applications...');
+        try {
+            await this.system.executeCommand('pm2', ['stop', 'all']);
+            this.logger.success('PM2 applications stopped');
+        } catch (error: any) {
+            this.logger.error(`Failed to stop PM2 applications: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async restart(): Promise<void> {
+        this.logger.step('Restarting PM2 applications...');
+        try {
+            await this.system.executeCommand('pm2', ['restart', 'all']);
+            this.logger.success('PM2 applications restarted');
+        } catch (error: any) {
+            this.logger.error(`Failed to restart PM2 applications: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async delete(): Promise<void> {
+        this.logger.step('Deleting PM2 applications...');
+        try {
+            await this.system.executeCommand('pm2', ['delete', 'all']);
+            this.logger.success('PM2 applications deleted');
+        } catch (error: any) {
+            this.logger.error(`Failed to delete PM2 applications: ${error.message}`);
+            throw error;
+        }
     }
 }

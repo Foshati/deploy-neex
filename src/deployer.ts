@@ -1,4 +1,3 @@
-
 // src/deployer.ts
 import { DeployConfig, NeexProject } from './types.js';
 import { Logger } from './utils/logger.js';
@@ -50,7 +49,8 @@ export class Deployer {
             this.printPostDeploymentInfo(config, project);
 
         } catch (error) {
-            this.logger.error(`Deployment failed: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Deployment failed: ${errorMessage}`);
             throw error;
         }
     }
@@ -118,7 +118,8 @@ PORT_SERVER=${config.serverPort}
             await this.nginx.install();
             await this.nginx.generate(config, project);
         } catch (error) {
-            this.logger.warning(`Nginx setup requires manual intervention: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.warning(`Nginx setup requires manual intervention: ${errorMessage}`);
         }
     }
 
